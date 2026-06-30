@@ -1,0 +1,85 @@
+services:
+  zabbix-proxy:
+    image: zabbix/zabbix-proxy-sqlite3:alpine-7.0-latest
+    container_name: zabbix-proxy
+    restart: unless-stopped
+    ports:
+      - "10051:10051"
+    environment:
+      ZBX_HOSTNAME: ${ZBX_PROXY_HOSTNAME}
+      ZBX_SERVER_HOST: ${ZBX_SERVER_HOST}
+      ZBX_SERVER_PORT: ${ZBX_SERVER_PORT:-10051}
+      ZBX_PROXYMODE: ${ZBX_PROXY_MODE:-0}           # 0=active, 1=passive
+
+      # --- Comunicação com o servidor ---
+      ZBX_PROXYHEARTBEATFREQUENCY: 60
+      ZBX_CONFIGFREQUENCY: 120
+      ZBX_DATACACHESIZE: 128M
+      ZBX_HISTORYCACHESIZE: 64M
+      ZBX_HISTORYTEXTCACHESIZE: 32M
+      ZBX_TRENDFUNCTIONCACHESIZE: 16M
+
+      # --- Workers e coleta ---
+      ZBX_STARTPOLLERS: 20
+      ZBX_STARTIPMIPOLLERS: 2
+      ZBX_STARTPOLLERSUNREACHABLE: 4
+      ZBX_STARTPINGERS: 4
+      ZBX_STARTDISCOVERERS: 2
+      ZBX_STARTHTTPPOLLERS: 4
+      ZBX_STARTPREPROCESSORS: 6
+      ZBX_STARTTRAPPERS: 4
+      ZBX_STARTDBSYNCERS: 4
+      ZBX_STARTJAVAPOLLERS: 0
+
+      # --- Timeouts e buffers ---
+      ZBX_TIMEOUT: 10
+      ZBX_HOUSEKEEPINGFREQUENCY: 1
+      ZBX_MAXHOUSEKEEPERDELETE: 5000
+      ZBX_PROXYLOCALBUFER: 0
+      ZBX_PROXYOFFLINEBUFFER: 12          # horas de buffer offline
+
+      # --- Log ---
+      ZBX_LOGTYPE: console
+      ZBX_DEBUGLEVEL: 3
+
+      # --- TLS (opcional, descomente se usar PSK) ---
+      # ZBX_TLSCONNECT: psk
+      # ZBX_TLSACCEPT: psk
+      # ZBX_TLSPSKIDENTITY: ${ZBX_TLS_PSK_IDENTITY}
+      # ZBX_TLSPSKFILE: /var/lib/zabbix/enc/zabbix_proxy.psk
+
+    volumes:
+      - zabbix-proxy-db:/var/lib/zabbix/db
+      - zabbix-proxy-enc:/var/lib/zabbix/enc
+      - zabbix-proxy-modules:/var/lib/zabbix/modules
+      - zabbix-proxy-scripts:/usr/lib/zabbix/externalscripts
+      - /etc/localtime:/etc/localtime:ro
+
+    networks:
+      - zabbix-net
+
+    sysctls:
+      - net.ipv4.ip_local_port_range=1024 65535
+      - net.core.somaxconn=4096
+
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+    healthcheck:
+      test: ["CMD", "zabbix_proxy", "-R", "config_cache_reload"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  zabbix-proxy-db:
+  zabbix-proxy-enc:
+  zabbix-proxy-modules:
+  zabbix-proxy-scripts:
+
+networks:
+  zabbix-net:
+    driver: bridge
